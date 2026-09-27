@@ -1,0 +1,229 @@
+{
+  "robot": {
+    "name": "agibot_a3",
+    "xml": "${SONIC_A3_ROOT}/gear_sonic/data/assets/robot_description/mjcf/a3_t2d5_loop_passive_foot_twostage_fit_optimized.xml",
+    "point_cloud_center": "body:waist_yaw_Link",
+    "sample_pose": "tpose",
+    "tpose_qpos": {
+      "head_pitch_joint": 0.0,
+      "head_yaw_joint": 0.0,
+      "left_ankle_pitch_joint": 0.0,
+      "left_ankle_roll_joint": 0.0,
+      "left_elbow_joint": 1.49225651,
+      "left_hip_pitch_joint": 0.0,
+      "left_hip_roll_joint": 0.0,
+      "left_hip_yaw_joint": 0.0,
+      "left_knee_joint": 0.0,
+      "left_shoulder_pitch_joint": 0.0,
+      "left_shoulder_roll_joint": 1.548979711,
+      "left_shoulder_yaw_joint": 0.0,
+      "right_ankle_pitch_joint": 0.0,
+      "right_ankle_roll_joint": 0.0,
+      "right_elbow_joint": 1.49225651,
+      "right_hip_pitch_joint": 0.0,
+      "right_hip_roll_joint": 0.0,
+      "right_hip_yaw_joint": 0.0,
+      "right_knee_joint": 0.0,
+      "right_shoulder_pitch_joint": 0.0,
+      "right_shoulder_roll_joint": -1.548979711,
+      "right_shoulder_yaw_joint": 0.0
+    },
+    "joint_limits": {
+      "head_pitch_joint": [
+        0.0,
+        0.0
+      ],
+      "head_yaw_joint": [
+        0.0,
+        0.0
+      ],
+      "left_ankle_motor_down_joint": [
+        0.0,
+        0.0
+      ],
+      "left_ankle_motor_up_joint": [
+        0.0,
+        0.0
+      ],
+      "left_ankle_pitch_joint": [
+        -0.907571211,
+        0.523598776
+      ],
+      "left_ankle_roll_joint": [
+        -0.34906585,
+        0.34906585
+      ],
+      "left_elbow_joint": [
+        -0.959931089,
+        1.745329252
+      ],
+      "left_foot_forefoot_joint": [
+        0.0,
+        0.0
+      ],
+      "left_foot_toe_joint": [
+        0.0,
+        0.0
+      ],
+      "left_hip_pitch_joint": [
+        -2.513274123,
+        2.932153143
+      ],
+      "left_hip_roll_joint": [
+        -0.523598776,
+        1.605702912
+      ],
+      "left_hip_yaw_joint": [
+        -2.722713633,
+        2.722713633
+      ],
+      "left_knee_joint": [
+        -0.122173048,
+        2.49582083
+      ],
+      "left_shoulder_pitch_joint": [
+        -2.879793266,
+        2.879793266
+      ],
+      "left_shoulder_roll_joint": [
+        -0.087266463,
+        2.617993878
+      ],
+      "left_shoulder_yaw_joint": [
+        -2.792526803,
+        2.792526803
+      ],
+      "left_waist_motor_joint": [
+        0.0,
+        0.0
+      ],
+      "left_wrist_pitch_joint": [
+        -1.623156204,
+        1.623156204
+      ],
+      "left_wrist_roll_joint": [
+        -2.792526803,
+        2.792526803
+      ],
+      "left_wrist_yaw_joint": [
+        -1.623156204,
+        1.623156204
+      ],
+      "right_ankle_motor_down_joint": [
+        0.0,
+        0.0
+      ],
+      "right_ankle_motor_up_joint": [
+        0.0,
+        0.0
+      ],
+      "right_ankle_pitch_joint": [
+        -0.907571211,
+        0.523598776
+      ],
+      "right_ankle_roll_joint": [
+        -0.34906585,
+        0.34906585
+      ],
+      "right_elbow_joint": [
+        -0.959931089,
+        1.745329252
+      ],
+      "right_foot_forefoot_joint": [
+        0.0,
+        0.0
+      ],
+      "right_foot_toe_joint": [
+        0.0,
+        0.0
+      ],
+      "right_hip_pitch_joint": [
+        -2.513274123,
+        2.932153143
+      ],
+      "right_hip_roll_joint": [
+        -1.605702912,
+        0.523598776
+      ],
+      "right_hip_yaw_joint": [
+        -2.722713633,
+        2.722713633
+      ],
+      "right_knee_joint": [
+        -0.122173048,
+        2.49582083
+      ],
+      "right_shoulder_pitch_joint": [
+        -2.879793266,
+        2.879793266
+      ],
+      "right_shoulder_roll_joint": [
+        -2.617993878,
+        0.087266463
+      ],
+      "right_shoulder_yaw_joint": [
+        -2.792526803,
+        2.792526803
+      ],
+      "right_waist_motor_joint": [
+        0.0,
+        0.0
+      ],
+      "right_wrist_pitch_joint": [
+        -1.623156204,
+        1.623156204
+      ],
+      "right_wrist_roll_joint": [
+        -2.792526803,
+        2.792526803
+      ],
+      "right_wrist_yaw_joint": [
+        -1.623156204,
+        1.623156204
+      ],
+      "waist_pitch_joint": [
+        -0.488692191,
+        0.41887902
+      ],
+      "waist_roll_joint": [
+        -0.34906585,
+        0.34906585
+      ],
+      "waist_yaw_joint": [
+        -2.617993878,
+        2.617993878
+      ]
+    }
+  },
+  "_bridge": {
+    "generated_by": "a3_teleop_bridge/tools/make_umr_a3_config.py",
+    "sources": {
+      "mjcf": "/inspire/hdd/global_user/liumengfan-253108110079/wsc-workspace/a3_teleop_ws/sonic_for_a3/gear_sonic/data/assets/robot_description/mjcf/a3_t2d5_loop_passive_foot_twostage_fit_optimized.xml",
+      "urdf": "/inspire/hdd/global_user/liumengfan-253108110079/wsc-workspace/a3_teleop_ws/sonic_for_a3/gear_sonic/data/assets/robot_description/urdf/a3/model_collision_optimized_passive_foot_twostage_fit_optimized.urdf",
+      "tpose": "generated/a3_tpose.json",
+      "joint_limits": "generated/a3_joint_limits.yaml",
+      "contract": "generated/a3_contract.json"
+    },
+    "notes": [
+      "robot.xml uses ${SONIC_A3_ROOT}; the UMR config loader expands ~ and ${VAR}.",
+      "tpose_qpos comes from a bounded FK fit of the MJCF, not from hand entry.",
+      "passive foot + parallel-mechanism motor joints are locked to [0, 0].",
+      "head joints stay neutral in UMR qpos but are excluded from the A3 policy view."
+    ],
+    "locked_joints": [
+      "left_foot_forefoot_joint",
+      "left_foot_toe_joint",
+      "right_foot_forefoot_joint",
+      "right_foot_toe_joint",
+      "left_ankle_motor_up_joint",
+      "left_ankle_motor_down_joint",
+      "right_ankle_motor_up_joint",
+      "right_ankle_motor_down_joint",
+      "left_waist_motor_joint",
+      "right_waist_motor_joint",
+      "head_yaw_joint",
+      "head_pitch_joint"
+    ],
+    "policy_joint_count": 29
+  }
+}

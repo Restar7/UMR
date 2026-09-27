@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -111,11 +112,21 @@ def config_dir(config: dict[str, Any]) -> Path:
     return Path(config.get("_config_dir", ROOT)).resolve()
 
 
+def expand_config_path(value: str | Path) -> Path:
+    """Expand ``~`` and ``${ENV_VAR}`` in a configured path.
+
+    Robot assets (for example the A3 MJCF) may live outside this repository, so
+    configs must be able to reference them through an environment variable such
+    as ``${SONIC_A3_ROOT}`` instead of a hard-coded home directory.
+    """
+    return Path(os.path.expandvars(os.path.expanduser(str(value))))
+
+
 def resolve_path(value: str | Path | None, config: dict[str, Any], default: str | Path | None = None) -> Path | None:
     raw = default if value is None else value
     if raw is None:
         return None
-    path = Path(raw)
+    path = expand_config_path(raw)
     if path.is_absolute():
         return path.resolve()
     base = config_dir(config)
