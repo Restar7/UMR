@@ -78,7 +78,7 @@
         2.722713633
       ],
       "left_knee_joint": [
-        -0.122173048,
+        0.0,
         2.49582083
       ],
       "left_shoulder_pitch_joint": [
@@ -150,7 +150,7 @@
         2.722713633
       ],
       "right_knee_joint": [
-        -0.122173048,
+        0.0,
         2.49582083
       ],
       "right_shoulder_pitch_joint": [
@@ -208,6 +208,7 @@
       "robot.xml uses ${SONIC_A3_ROOT}; the UMR config loader expands ~ and ${VAR}.",
       "tpose_qpos comes from a bounded FK fit of the MJCF, not from hand entry.",
       "passive foot + parallel-mechanism motor joints are locked to [0, 0].",
+      "knee limits are clipped to >= 0 so the retargeter cannot invert them.",
       "head joints stay neutral in UMR qpos but are excluded from the A3 policy view."
     ],
     "locked_joints": [
@@ -223,6 +224,10 @@
       "right_waist_motor_joint",
       "head_yaw_joint",
       "head_pitch_joint"
+    ],
+    "non_negative_joints": [
+      "left_knee_joint",
+      "right_knee_joint"
     ],
     "policy_joint_count": 29
   }
