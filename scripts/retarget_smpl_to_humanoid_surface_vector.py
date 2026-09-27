@@ -780,8 +780,15 @@ def resolve_xml_asset_path(file_text: str, source_xml: Path, asset_base: Path | 
             if candidate.exists():
                 return candidate
         return file_path
-    if file_path.parent == Path(".") and asset_base is not None:
-        return asset_base / file_path
+    # MuJoCo semantics: a relative asset path is resolved against `meshdir`
+    # (`texturedir`) whenever that compiler attribute is present, regardless of
+    # whether the path has directory components.  Models such as the AgiBot A3
+    # MJCF use meshdir="../urdf/a3" together with file="meshes/<name>.STL", so a
+    # bare-filename-only rule silently produced <xml_dir>/meshes/<name>.STL.
+    if asset_base is not None:
+        candidate = asset_base / file_path
+        if candidate.exists():
+            return candidate
     return source_xml.parent / file_path
 
 
