@@ -1612,6 +1612,57 @@ def update_ground_contact_anchors(model, data, qpos, robot_template, active_slot
         anchor_state[int(slot_id)] = target
 
 
+def source_knee_interior_deg(joints_frame, joint_names):
+    """Thigh-shank interior angle (deg) of both knees for one source frame."""
+    if joint_names is None:
+        lh, lk, la = (common.SMPLX_JOINT_IDS[k] for k in ("L_Hip", "L_Knee", "L_Ankle"))
+        rh, rk, ra = (common.SMPLX_JOINT_IDS[k] for k in ("R_Hip", "R_Knee", "R_Ankle"))
+    else:
+        lh = common.soma_source.soma_joint_index(joint_names, "LeftUpLeg", "LeftLeg")
+        lk = common.soma_source.soma_joint_index(joint_names, "LeftLeg", "LeftShin")
+        la = common.soma_source.soma_joint_index(joint_names, "LeftFoot", "LeftAnkle")
+        rh = common.soma_source.soma_joint_index(joint_names, "RightUpLeg", "RightLeg")
+        rk = common.soma_source.soma_joint_index(joint_names, "RightLeg", "RightShin")
+        ra = common.soma_source.soma_joint_index(joint_names, "RightFoot", "RightAnkle")
+    out = []
+    for hip, knee, ankle in ((lh, lk, la), (rh, rk, ra)):
+        v1 = np.asarray(joints_frame[hip], dtype=np.float64) - np.asarray(joints_frame[knee], dtype=np.float64)
+        v2 = np.asarray(joints_frame[ankle], dtype=np.float64) - np.asarray(joints_frame[knee], dtype=np.float64)
+        cosang = float(np.dot(v1, v2) / max(np.linalg.norm(v1) * np.linalg.norm(v2), 1e-12))
+        out.append(float(np.degrees(np.arccos(np.clip(cosang, -1.0, 1.0)))))
+    return out
+
+
+def robot_knee_interior_calibration(model, data, hip_body, knee_body, ankle_body, knee_adr):
+    """Measured linear map ``interior_deg = intercept + slope * knee_rad``.
+
+    Sampled from the robot's own geometry rather than assumed, so the source
+    interior angle converts straight into a robot knee angle.
+    """
+    import mujoco
+
+    interior = []
+    q_probe = data.qpos.copy()
+    for value in (0.0, 1.0):
+        q_probe[int(knee_adr)] = value
+        data.qpos[:] = q_probe
+        mujoco.mj_forward(model, data)
+        pts = []
+        for name in (hip_body, knee_body, ankle_body):
+            bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
+            if bid < 0:
+                return None
+            pts.append(data.xpos[bid].copy())
+        v1 = pts[0] - pts[1]
+        v2 = pts[2] - pts[1]
+        cosang = float(np.dot(v1, v2) / max(np.linalg.norm(v1) * np.linalg.norm(v2), 1e-12))
+        interior.append(float(np.degrees(np.arccos(np.clip(cosang, -1.0, 1.0)))))
+    slope = interior[1] - interior[0]
+    if abs(slope) < 1e-6:
+        return None
+    return interior[0], slope
+
+
 def knee_posture_targets(model, data, joints, joint_names, hip_body, knee_body, ankle_body, knee_adrs):
     """Per-frame target knee angles from the source skeleton's knee flexion.
 
@@ -1624,49 +1675,12 @@ def knee_posture_targets(model, data, joints, joint_names, hip_body, knee_body, 
     angle is sampled at two knee values and the linear relation is inverted, so
     the source's interior knee angle becomes a robot knee angle directly.
     """
-    import mujoco
-
-    knee_lo, knee_hi = 0.0, 1.0
-    interior = []
-    q_probe = data.qpos.copy()
-    for value in (knee_lo, knee_hi):
-        for adr in knee_adrs:
-            q_probe[adr] = value
-        data.qpos[:] = q_probe
-        mujoco.mj_forward(model, data)
-        pts = []
-        for name in (hip_body, knee_body, ankle_body):
-            bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
-            pts.append(data.xpos[bid].copy())
-        v1 = pts[0] - pts[1]
-        v2 = pts[2] - pts[1]
-        cosang = float(np.dot(v1, v2) / max(np.linalg.norm(v1) * np.linalg.norm(v2), 1e-12))
-        interior.append(float(np.degrees(np.arccos(np.clip(cosang, -1.0, 1.0)))))
-    slope = (interior[1] - interior[0]) / (knee_hi - knee_lo)
-    if abs(slope) < 1e-6:
+    calib = robot_knee_interior_calibration(
+        model, data, hip_body, knee_body, ankle_body, knee_adrs[0]
+    )
+    if calib is None:
         return None, None
-    intercept = interior[0] - slope * knee_lo
-
-    def source_interior(joints_frame):
-        if joint_names is None:
-            lh, lk, la = (common.SMPLX_JOINT_IDS[k] for k in ("L_Hip", "L_Knee", "L_Ankle"))
-            rh, rk, ra = (common.SMPLX_JOINT_IDS[k] for k in ("R_Hip", "R_Knee", "R_Ankle"))
-        else:
-            lh = common.soma_source.soma_joint_index(joint_names, "LeftUpLeg", "LeftLeg")
-            lk = common.soma_source.soma_joint_index(joint_names, "LeftLeg", "LeftShin")
-            la = common.soma_source.soma_joint_index(joint_names, "LeftFoot", "LeftAnkle")
-            rh = common.soma_source.soma_joint_index(joint_names, "RightUpLeg", "RightLeg")
-            rk = common.soma_source.soma_joint_index(joint_names, "RightLeg", "RightShin")
-            ra = common.soma_source.soma_joint_index(joint_names, "RightFoot", "RightAnkle")
-        out = []
-        for hip, knee, ankle in ((lh, lk, la), (rh, rk, ra)):
-            v1 = np.asarray(joints_frame[hip], dtype=np.float64) - np.asarray(joints_frame[knee], dtype=np.float64)
-            v2 = np.asarray(joints_frame[ankle], dtype=np.float64) - np.asarray(joints_frame[knee], dtype=np.float64)
-            cosang = float(np.dot(v1, v2) / max(np.linalg.norm(v1) * np.linalg.norm(v2), 1e-12))
-            out.append(float(np.degrees(np.arccos(np.clip(cosang, -1.0, 1.0)))))
-        return out
-
-    return source_interior, (intercept, slope)
+    return (lambda joints_frame: source_knee_interior_deg(joints_frame, joint_names)), calib
 
 
 def solve_frame_body_segment_qp(
@@ -2791,40 +2805,39 @@ def main():
             joint_prior_knee_adrs.append(int(model.jnt_qposadr[jid]))
             joint_prior_knee_dofs.append(int(model.jnt_dofadr[jid]))
         if joint_prior_cost > 0.0:
-            src_fn, calib = knee_posture_targets(
+            _calib = robot_knee_interior_calibration(
                 model,
                 data_mj,
-                joints_scaled,
-                source_joint_names,
                 "left_hip_pitch_Link",
                 "left_knee_Link",
                 "left_ankle_roll_Link",
-                [joint_prior_knee_adrs[0]],
+                joint_prior_knee_adrs[0],
             )
-            if calib is None:
+            if _calib is None:
                 joint_prior_cost = 0.0
             else:
-                joint_prior_map = (src_fn, calib)
+                _knee_names = ("left_knee_joint", "right_knee_joint")
+                _ranges = [
+                    model.jnt_range[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)]
+                    for n in _knee_names
+                ]
+                joint_prior_map = (_calib, _ranges)
                 print(
                     f"[HumanoidRetarget][JointPosturePrior] joint_map_cost={joint_prior_cost:.4f} "
                     f"knees={joint_prior_knee_adrs} robot_interior(knee)="
-                    f"{calib[0]:.2f}+{calib[1]:.2f}*knee deg"
+                    f"{_calib[0]:.2f}+{_calib[1]:.2f}*knee deg"
                 )
         joint_prior_ready = joint_prior_cost > 0.0 and joint_prior_map is not None
 
     def joint_prior_rows_for_frame(out_idx):
         if not joint_prior_ready:
             return []
-        src_fn, (intercept, slope) = joint_prior_map
-        interior = src_fn(joints_scaled[out_idx])
+        (intercept, slope), ranges = joint_prior_map
+        interior = source_knee_interior_deg(joints_scaled[out_idx], source_joint_names)
         rows = []
         for side_i, (adr, dof) in enumerate(zip(joint_prior_knee_adrs, joint_prior_knee_dofs)):
             target = (float(interior[side_i]) - intercept) / slope
-            lo, hi = model.jnt_range[
-                mujoco.mj_name2id(
-                    model, mujoco.mjtObj.mjOBJ_JOINT, "left_knee_joint" if side_i == 0 else "right_knee_joint"
-                )
-            ]
+            lo, hi = ranges[side_i]
             rows.append((adr, dof, float(np.clip(target, lo, hi))))
         return rows
 
