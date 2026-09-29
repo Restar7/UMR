@@ -1683,6 +1683,65 @@ def knee_posture_targets(model, data, joints, joint_names, hip_body, knee_body, 
     return (lambda joints_frame: source_knee_interior_deg(joints_frame, joint_names)), calib
 
 
+def source_ankle_flexion_deg(joints_frame, joint_names):
+    """Shank-foot interior angle (deg) of both ankles for one source frame.
+
+    Mirrors :func:`source_knee_interior_deg` one joint further down the chain.
+    A3 actuates no toe (``foot_toe_joint`` is a passive +-13.2 deg spring and
+    ``foot_forefoot_joint`` is effectively rigid), so the whole "cock the toes,
+    then press the pedal" gesture is this single angle.
+    """
+    if joint_names is None:
+        lk, la, lf = (common.SMPLX_JOINT_IDS[k] for k in ("L_Knee", "L_Ankle", "L_Foot"))
+        rk, ra, rf = (common.SMPLX_JOINT_IDS[k] for k in ("R_Knee", "R_Ankle", "R_Foot"))
+    else:
+        lk = common.soma_source.soma_joint_index(joint_names, "LeftLeg", "LeftShin")
+        la = common.soma_source.soma_joint_index(joint_names, "LeftFoot", "LeftAnkle")
+        lf = common.soma_source.soma_joint_index(joint_names, "LeftToe", "LeftToeBase")
+        rk = common.soma_source.soma_joint_index(joint_names, "RightLeg", "RightShin")
+        ra = common.soma_source.soma_joint_index(joint_names, "RightFoot", "RightAnkle")
+        rf = common.soma_source.soma_joint_index(joint_names, "RightToe", "RightToeBase")
+    out = []
+    for knee, ankle, foot in ((lk, la, lf), (rk, ra, rf)):
+        v1 = np.asarray(joints_frame[knee], dtype=np.float64) - np.asarray(joints_frame[ankle], dtype=np.float64)
+        v2 = np.asarray(joints_frame[foot], dtype=np.float64) - np.asarray(joints_frame[ankle], dtype=np.float64)
+        cosang = float(np.dot(v1, v2) / max(np.linalg.norm(v1) * np.linalg.norm(v2), 1e-12))
+        out.append(float(np.degrees(np.arccos(np.clip(cosang, -1.0, 1.0)))))
+    return out
+
+
+def robot_ankle_interior_calibration(model, data, knee_body, ankle_body, foot_body, ankle_adr):
+    """Measured linear map ``interior_deg = intercept + slope * ankle_rad``.
+
+    Same two-point probe as :func:`robot_knee_interior_calibration`, moved to the
+    shank-foot pair.  Sampled from the robot's own geometry rather than assumed,
+    so the source's shank-foot angle converts straight into an ankle angle.
+    """
+    import mujoco
+
+    interior = []
+    q_probe = data.qpos.copy()
+    probe = (0.0, -0.6)
+    for value in probe:
+        q_probe[int(ankle_adr)] = value
+        data.qpos[:] = q_probe
+        mujoco.mj_forward(model, data)
+        pts = []
+        for name in (knee_body, ankle_body, foot_body):
+            bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, name)
+            if bid < 0:
+                return None
+            pts.append(data.xpos[bid].copy())
+        v1 = pts[0] - pts[1]
+        v2 = pts[2] - pts[1]
+        cosang = float(np.dot(v1, v2) / max(np.linalg.norm(v1) * np.linalg.norm(v2), 1e-12))
+        interior.append(float(np.degrees(np.arccos(np.clip(cosang, -1.0, 1.0)))))
+    slope = (interior[1] - interior[0]) / (probe[1] - probe[0])
+    if abs(slope) < 1e-6:
+        return None
+    return interior[0], slope
+
+
 def solve_frame_body_segment_qp(
     model,
     data,
@@ -2789,13 +2848,24 @@ def main():
         q_init[3:7] = common.source_qpos_body_heading(joints_scaled[out_idx], source_joint_names)
         return q_init
 
-    # Optional knee posture prior (P1): pull the robot knee onto the source's
-    # measured knee flexion.  Disabled unless solver.joint_map_cost > 0.
+    # Optional joint posture prior (P1): pull the robot knee AND ankle onto the
+    # source's measured flexion.  Disabled unless solver.joint_map_cost > 0.
+    #
+    # The ankle was added after the fact: the prior originally covered the knee
+    # only, so the ankle was unconstrained in exactly the way the knee used to be
+    # and the surface objective parked it on its lower stop for 43-75% of every
+    # clip that bends the left leg (bend_knees 64/150, lift_left_foot 73/150,
+    # squat_deep 112/150, press_pedal 125/249) while the official references
+    # never go below -38.6 deg.  A pedal press was unusable because the reference
+    # never left the stop and so never expressed the "press down" half.
     joint_prior_cost = float(getattr(args, "joint_map_cost", 0.0) or 0.0)
     joint_prior_ready = False
     joint_prior_knee_adrs = []
     joint_prior_knee_dofs = []
+    joint_prior_ankle_adrs = []
+    joint_prior_ankle_dofs = []
     joint_prior_map = None
+    joint_prior_ankle_map = None
     if joint_prior_cost > 0.0:
         for side in ("left", "right"):
             jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"{side}_knee_joint")
@@ -2827,6 +2897,37 @@ def main():
                     f"knees={joint_prior_knee_adrs} robot_interior(knee)="
                     f"{_calib[0]:.2f}+{_calib[1]:.2f}*knee deg"
                 )
+        if joint_prior_cost > 0.0:
+            for side in ("left", "right"):
+                jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"{side}_ankle_pitch_joint")
+                if jid < 0:
+                    joint_prior_ankle_adrs = []
+                    break
+                joint_prior_ankle_adrs.append(int(model.jnt_qposadr[jid]))
+                joint_prior_ankle_dofs.append(int(model.jnt_dofadr[jid]))
+            if joint_prior_ankle_adrs:
+                _ankle_calib = robot_ankle_interior_calibration(
+                    model,
+                    data_mj,
+                    "left_knee_Link",
+                    "left_ankle_roll_Link",
+                    "left_foot_forefoot_Link",
+                    joint_prior_ankle_adrs[0],
+                )
+                if _ankle_calib is None:
+                    joint_prior_ankle_adrs = []
+                else:
+                    _ankle_names = ("left_ankle_pitch_joint", "right_ankle_pitch_joint")
+                    _ankle_ranges = [
+                        model.jnt_range[mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, n)]
+                        for n in _ankle_names
+                    ]
+                    joint_prior_ankle_map = (_ankle_calib, _ankle_ranges)
+                    print(
+                        f"[HumanoidRetarget][JointPosturePrior] "
+                        f"ankles={joint_prior_ankle_adrs} robot_interior(ankle)="
+                        f"{_ankle_calib[0]:.2f}+{_ankle_calib[1]:.2f}*ankle deg"
+                    )
         joint_prior_ready = joint_prior_cost > 0.0 and joint_prior_map is not None
 
     def joint_prior_rows_for_frame(out_idx):
@@ -2839,6 +2940,15 @@ def main():
             target = (float(interior[side_i]) - intercept) / slope
             lo, hi = ranges[side_i]
             rows.append((adr, dof, float(np.clip(target, lo, hi))))
+        if joint_prior_ankle_map is not None:
+            (a_intercept, a_slope), a_ranges = joint_prior_ankle_map
+            a_interior = source_ankle_flexion_deg(joints_scaled[out_idx], source_joint_names)
+            for side_i, (adr, dof) in enumerate(
+                zip(joint_prior_ankle_adrs, joint_prior_ankle_dofs)
+            ):
+                target = (float(a_interior[side_i]) - a_intercept) / a_slope
+                lo, hi = a_ranges[side_i]
+                rows.append((adr, dof, float(np.clip(target, lo, hi))))
         return rows
 
     progress_done = 0
